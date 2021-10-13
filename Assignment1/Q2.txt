@@ -1,0 +1,24 @@
+One hint telling us that the model in question is not MLE is that the number of trigrams is equal exactly to the number
+of trigrams one can generate with english lowercase characters, space, hash and coma. That number is the sum of the
+following numbers:
+
+29          -> case for P(char | #,#), character at the beginning of the sentence
+29*29       -> case for P(char | #,char), second character of the sentence
+29*29       -> case for P(# | char, char), end of the sentence
+29*29*29    -> case for P(char | char, char), anything within the sentence
+
+which equals 26100, the precise numbers of trigrams in the model. This means that, unless all trigrams have been
+actually observed, smoothing of some kind has been applied. The most frequent probability observed is 3.33e-02,
+occurring 16231. One can observe that trigrams which this probability is assigned to seem to be very improbable for
+a corpus in English language. These trigrams generally look like this: "zzg", "zzy", "zzl". These trigrams also include
+strings which are weirdly formatted, for example "  a", which in this case would mean that some word would have to start
+with 'a' and two preceding space characters, which will not occur in a well formatted document.
+
+Another probability that occurs quite often is 1.429e-02, which also occurs for trigrams one would not expect to
+observed in english language sentences. Since trigrams which should have zero probability have actually different
+probabilities assigned, I believe the considered model uses a more sophisticated smoothing than add-1 or add-alpha, such
+as back-off or interpolation.
+
+
+
+
