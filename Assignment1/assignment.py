@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+
 import random
 import re
 import sys
+import json
+import math
 
 
 def preprocess_line(line: str):
@@ -23,10 +27,11 @@ def generate_n_gram_model(corpus: str, n: int):
                 of characters observed after that string and their count, which is not normalized at this point
     """
     size = len(corpus)
-    if size < n:
-        return None
     # Surround the line with special character indicating start and end of line
     corpus = '#' * (n - 1) + corpus + '#'
+
+    if size == 0:
+        return {}
 
     # Get the counts
     counts = dict()
@@ -62,7 +67,7 @@ def train_model(file: str, n: int):
         for character in probabilities[condition]:
             probabilities[condition][character] /= total_count
 
-    save_model("{}_{}gram_model".format(file, n), probabilities)
+    #save_model("{}_{}gram_model".format(file, n), probabilities)
     fp.close()
     return probabilities
 
@@ -93,10 +98,46 @@ def save_model(file: str, model: dict):
             fp.write(line)
     fp.close()
 
+# Given a Language Model, a Test Documents path as a string, and the n-gram n, return the perplexity
+# Perplexity of a sequence W (i.e. PP(W)) is given by equation
+#PP(W)
+def compute_perplexity(model: dict, doc: str, n: int):
+    product_log_probabilities = 1.0
+    model
+    corpus = open(doc, "r")
+    cleaned_corpus = ""
+    for line in corpus:
+        cleaned_corpus += preprocess_line(line)
+
+    cleaned_corpus_size = len(cleaned_corpus)
+    for i in range(n, cleaned_corpus_size + 1):
+        ngram = cleaned_corpus[i - n: i]
+        given = ngram[0: n - 1]
+        current = ngram[n - 1]
+        try:
+            #print(ngram)
+            #print(model[given][current])
+            #product_log_probabilities *= (-1.0 * math.log(model[given][current], 10))
+            product_log_probabilities *= model[given][current]
+            #print(product_log_probabilities)
+        except:
+            continue
+
+    entropy = (-1.0/cleaned_corpus_size) * math.log2(product_log_probabilities)
+    perplexity = 2**(entropy)
+    print("perplexity of given model on " + doc+" : "+ str(perplexity))
+
+
 
 if __name__ == '__main__':
-    filename = sys.argv[1]
-    n_gram = int(sys.argv[2])
-    n_generate = int(sys.argv[3])
-    language_model = train_model(filename, n_gram)
-    print(generate_from_ML(language_model, n_generate))
+    training_filename = sys.argv[1]
+    perplex_filename = sys.argv[2]
+    # n_gram = int(sys.argv[2])
+    # n_generate = int(sys.argv[3])
+
+    n_gram = 3
+    n_generate = 300
+
+    language_model = train_model(training_filename, n_gram)
+    compute_perplexity(language_model, perplex_filename, n_gram)
+    #print(generate_from_ML(language_model, n_generate))
