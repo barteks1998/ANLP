@@ -15,7 +15,7 @@ def preprocess_line(line: str):
     :param line:
     :return: line without irrelevant characters
     """
-    return re.sub(r"\d", '0', re.sub(r"[^a-zA-Z\d. ]", '', line).lower())
+    return re.sub(r"\d", '0', re.sub(r"[^a-zA-Z\d. ]", '', line).lower()) + "\n"
 
 
 def generate_n_gram_model(corpus: str, n: int):
@@ -100,9 +100,10 @@ def save_model(file: str, model: dict):
 
 # Given a Language Model, a Test Documents path as a string, and the n-gram n, return the perplexity
 # Perplexity of a sequence W (i.e. PP(W)) is given by equation
-#PP(W)
+#PP(W) 2 ^ l
+# where l = (-1/N) * log(P(W_n))  i.e. (-1/(length of the sequence)) * (the log of the propbability of the sequence)
 def compute_perplexity(model: dict, doc: str, n: int):
-    product_log_probabilities = 1.0
+    sum_of_logs = 0.0
     model
     corpus = open(doc, "r")
     cleaned_corpus = ""
@@ -115,15 +116,11 @@ def compute_perplexity(model: dict, doc: str, n: int):
         given = ngram[0: n - 1]
         current = ngram[n - 1]
         try:
-            #print(ngram)
-            #print(model[given][current])
-            #product_log_probabilities *= (-1.0 * math.log(model[given][current], 10))
-            product_log_probabilities *= model[given][current]
-            #print(product_log_probabilities)
+            sum_of_logs += math.log(model[given][current])
         except:
             continue
 
-    entropy = (-1.0/cleaned_corpus_size) * math.log2(product_log_probabilities)
+    entropy = (-1.0/cleaned_corpus_size) * sum_of_logs
     perplexity = 2**(entropy)
     print("perplexity of given model on " + doc+" : "+ str(perplexity))
 
