@@ -1,9 +1,10 @@
 import random
 import re
 import sys
+import matplotlib.pylab as plt
 
 
-# Remove any symbols than are not english alphabet characters, space, coma or a digit
+# Remove any symbols than are not english characters, space, coma or a digit
 # Additionally change all digits to '0' and make all characters lowercase
 def preprocess_line(line: str):
     return re.sub(r"\d", '0', re.sub(r"[^a-zA-Z\d. ]", '', line).lower())
@@ -112,9 +113,9 @@ def generate_from_ML(model: dict, n: int):
 # Write the model to a text file
 def save_model(file: str, model: dict):
     fp = open(file, 'w')
-    for condition in model:
-        for character in model[condition]:
-            line = "{}{}\t{}\n".format(condition, character, model[condition][character])
+    for hist in model:
+        for char in model[hist]:
+            line = "{}{}\t{}\n".format(hist, char, model[hist][char])
             fp.write(line)
     fp.close()
 
@@ -134,11 +135,43 @@ def load_model(file: str):
     return model
 
 
+def word_length_distribution(file: str):
+    fp = open(file, 'r')
+    lens_to_counts = dict()
+    word_count = 0
+    for line in fp:
+        line = preprocess_line(line)
+        line.replace(".", "")
+        line.replace("0", "")
+        words = line.split(" ")
+        for word in words:
+            n = len(word)
+            if n == 0:
+                continue
+            if n not in lens_to_counts:
+                lens_to_counts[n] = 0
+            lens_to_counts[n] += 1
+            word_count += 1
+    # normalize the counts
+    av_len = sum([k * v for (k, v) in lens_to_counts.items()]) / word_count
+    for count in lens_to_counts:
+        lens_to_counts[count] /= word_count
+    return lens_to_counts, av_len
+
+
 if __name__ == '__main__':
     filename = sys.argv[1]
     n_generate = int(sys.argv[2])
     language_model = train_model(filename)
     print(generate_from_ML(language_model, n_generate))
-    print(len(generate_from_ML(language_model, n_generate).replace("#", "")))
     print("\n\n")
-    print(generate_from_ML(load_model("model-br.en"), n_generate))
+    (dist, av) = word_length_distribution(filename)
+    print("Average word length for {} is {}".format(filename, av))
+    lists = sorted(dist.items())  # sorted by key, return a list of tuples
+
+    x, y = zip(*lists)  # unpack a list of pairs into two tuples
+    plt.bar(x, y)
+    plt.xlabel("Word length")
+    plt.ylabel("Normalized frequency")
+    plt.title("Normalized word length frequencies for {}".format(filename))
+    plt.show()
