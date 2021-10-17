@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 fp = open("model-br.en", "r")
 trigrams = 0
 probabilities = dict()
@@ -21,4 +23,3 @@ print("{} different probabilities observed.".format(len(probabilities)))
 
 for prob in probabilities:
     print("\tProbability {} observed {} times".format(prob, probabilities[prob]))
-

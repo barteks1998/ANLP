@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+
 import random
 import re
 import sys
+import json
+import math
 import matplotlib.pylab as plt
 
 
@@ -118,6 +122,31 @@ def save_model(file: str, model: dict):
             line = "{}{}\t{}\n".format(hist, char, model[hist][char])
             fp.write(line)
     fp.close()
+
+# Given a Language Model, a Test Documents path as a string, and the n-gram n, return the perplexity
+# Perplexity of a sequence W (i.e. PP(W)) is given by equation
+# PP(W) = 2 ^ l
+# where l = (-1/N) * log(P(W_1, ....., W_n))  i.e. (-1/(length of the sequence)) * (the log of the propbability of the sequence)
+def compute_perplexity(model: dict, doc: str, n: int):
+    sum_of_logs = 0.0
+    corpus = open(doc, "r")
+    cleaned_corpus = ""
+    for line in corpus:
+        cleaned_corpus += preprocess_line(line)
+
+    cleaned_corpus_size = len(cleaned_corpus)
+    for i in range(n, cleaned_corpus_size + 1):
+        ngram = cleaned_corpus[i - n: i]
+        given = ngram[0: n - 1]
+        current = ngram[n - 1]
+        try:
+            sum_of_logs += math.log(model[given][current])
+        except:
+            continue
+
+    entropy = (-1.0/cleaned_corpus_size) * sum_of_logs
+    perplexity = 2**(entropy)
+    return perplexity
 
 
 def load_model(file: str):
