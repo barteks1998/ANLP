@@ -2,99 +2,123 @@
 
 import random
 import re
-import sys
-import json
+import sysimport json
 import math
+import matplotlib.pylab as plt
 
 
+# Remove any symbols than are not english characters, space, coma or a digit
+# Additionally change all digits to '0' and make all characters lowercase
 def preprocess_line(line: str):
-    """
-    Takes a line of text and returns a new string without characters outside of the set: characters in the English
-    alphabet, space, digits, or the ‘.’ character. Additionally the function lowercase all the letters and
-    substitutes all digits with '0'.
-    :param line:
-    :return: line without irrelevant characters
-    """
-    return re.sub(r"\d", '0', re.sub(r"[^a-zA-Z\d. ]", '', line).lower()) + "\n"
+    return re.sub(r"\d", '0', re.sub(r"[^a-zA-Z\d. ]", '', line).lower())
 
 
-def generate_n_gram_model(corpus: str, n: int):
-    """
-    Create a MLE model for ngram of size n on given corpus.
-    :param corpus: String to train the model
-    :param n: Size of ngram
-    :return: Dictionary representing the model. The dictionary maps from a string key of size n-1 to another dictionary
-                of characters observed after that string and their count, which is not normalized at this point
-    """
-    size = len(corpus)
-    # Surround the line with special character indicating start and end of line
-    corpus = '#' * (n - 1) + corpus + '#'
+def generate_all_trigrams(vocab: str):
+    # Generate all trigrams possible with given vocabulary
+    result = set()
+    # Add trigrams of form ##c1, which begin the sentence
+    for c1 in vocab:
+        result.add("##" + c1)
+    # Add trigrams of form #c1c2, first two characters of a sentence
+    for c1 in vocab:
+        for c2 in vocab:
+            result.add("#" + c1 + c2)
+    # Add trigrams of form c1c2c3, any combination within the sentence
+    for c1 in vocab:
+        for c2 in vocab:
+            for c3 in vocab:
+                result.add(c1 + c2 + c3)
+    # Add trigrams of form c1c2#, last two characters of the sentence
+    for c1 in vocab:
+        for c2 in vocab:
+            result.add(c1 + c2 + "#")
+    return result
 
-    if size == 0:
-        return {}
 
-    # Get the counts
+# Get trigram counts from current line
+def get_trigram_counts(line: str):
+    if len(line) == 0:
+        return dict()
+    # Add start and end of sentence tokens to the line
+    line = "##" + line + "#"
     counts = dict()
-    for i in range(n, size + n + 1):
-        ngram = corpus[i - n: i]
-        prev = ngram[0: n - 1]
-        char = ngram[n - 1]
-        if prev not in counts:
-            counts[prev] = dict()
-        if char not in counts[prev]:
-            counts[prev][char] = 0
-        counts[prev][char] += 1
-
+    for i in range(3, len(line)):
+        ngram = line[i - 3: i]
+        history = ngram[0: 3 - 1]
+        current = ngram[3 - 1]
+        if history not in counts:
+            counts[history] = dict()
+        if current not in counts[history]:
+            counts[history][current] = 0
+        counts[history][current] += 1
     return counts
 
 
-def train_model(file: str, n: int):
-    fp = open(file, 'r')
+# Train model with add-one smoothing
+def train_model(file: str):
+    # Generate all possible trigrams
+    vocab = "abcdefghijklmnopqrstuvwxyz0. "
+    v = len(vocab)
+    all_possible_trigrams = generate_all_trigrams(vocab)
+
+    # Create and pre-populate the data structure holding probabilities
     probabilities = dict()
+    for trigram in all_possible_trigrams:
+        history = trigram[0:2]
+        current = trigram[2]
+        if history not in probabilities:
+            probabilities[history] = dict()
+        if current not in probabilities[history]:
+            probabilities[history][current] = 0
+
+    fp = open(file, 'r')
     for line in fp:
-        counts = generate_n_gram_model(preprocess_line(line), n)
-        for condition in counts:
-            if condition not in probabilities:
-                probabilities[condition] = dict()
-            for character in counts[condition]:
-                if character not in probabilities[condition]:
-                    probabilities[condition][character] = 0
-                probabilities[condition][character] += counts[condition][character]
+        counts = get_trigram_counts(preprocess_line(line))
+        for history in counts:
+            for current in counts[history]:
+                probabilities[history][current] += counts[history][current]
 
-    # Normalize the counts in the dictionary to get actual probabilities
-    for condition in probabilities:
-        total_count = sum(probabilities[condition].values())
-        for character in probabilities[condition]:
-            probabilities[condition][character] /= total_count
+    # Apply add-one smoothing and normalization
+    for history in probabilities:
+        total_count = sum(probabilities[history].values())
+        for current in probabilities[history]:
+            probabilities[history][current] += 1
+            probabilities[history][current] /= (total_count + v)
 
-    #save_model("{}_{}gram_model".format(file, n), probabilities)
+    save_model("{}_trigram_model".format(file), probabilities)
     fp.close()
     return probabilities
 
 
+# Generate specified number of characters from the model
 def generate_from_ML(model: dict, n: int):
-    condition = "##"
+    history = "##"
     result = ""
     count = 0
     while count < n:
-        population = list(model[condition].keys())
-        weights = list(model[condition].values())
+        # List of characters from which next character is chosen
+        population = list(model[history].keys())
+        # Probabilities corresponding to the the population
+        weights = list(model[history].values())
+        # Pick random character basing on its probability
         choice = random.choices(population=population, weights=weights, k=1)[0]
-        # if the model chooses to start new sentence
+        # If the model chooses to start new sentence
+        result += choice
         if choice == '#':
-            condition = "##"  # reset the condition to start a new sentence
+            # Reset the history to start a new sentence
+            history = "##"
             continue
         count += 1
-        result += choice
-        condition = condition[1] + choice
+        history = history[1] + choice
     return result
 
 
+# Write the model to a text file
 def save_model(file: str, model: dict):
     fp = open(file, 'w')
-    for condition in model:
-        for character in model[condition]:
-            line = "{}{}\t{}\n".format(condition, character, model[condition][character])
+    for hist in model:
+        for char in model[hist]:
+            line = "{}{}\t{}\n".format(hist, char, model[hist][char])
             fp.write(line)
     fp.close()
 
@@ -126,15 +150,58 @@ def compute_perplexity(model: dict, doc: str, n: int):
 
 
 
+def load_model(file: str):
+    fp = open(file, 'r')
+    model = dict()
+    for line in fp:
+        data = line.split("\t")
+        hist = data[0][0:2]
+        char = data[0][2]
+        prob = float(data[1])
+        if hist not in model:
+            model[hist] = dict()
+        if char not in model[hist]:
+            model[hist][char] = prob
+    return model
+
+
+def word_length_distribution(file: str):
+    fp = open(file, 'r')
+    lens_to_counts = dict()
+    word_count = 0
+    for line in fp:
+        line = preprocess_line(line)
+        line.replace(".", "")
+        line.replace("0", "")
+        words = line.split(" ")
+        for word in words:
+            n = len(word)
+            if n == 0:
+                continue
+            if n not in lens_to_counts:
+                lens_to_counts[n] = 0
+            lens_to_counts[n] += 1
+            word_count += 1
+    # normalize the counts
+    av_len = sum([k * v for (k, v) in lens_to_counts.items()]) / word_count
+    for count in lens_to_counts:
+        lens_to_counts[count] /= word_count
+    return lens_to_counts, av_len
+
+
 if __name__ == '__main__':
-    training_filename = sys.argv[1]
-    perplex_filename = sys.argv[2]
-    # n_gram = int(sys.argv[2])
-    # n_generate = int(sys.argv[3])
+    filename = sys.argv[1]
+    n_generate = int(sys.argv[2])
+    language_model = train_model(filename)
+    print(generate_from_ML(language_model, n_generate))
+    print("\n\n")
+    (dist, av) = word_length_distribution(filename)
+    print("Average word length for {} is {}".format(filename, av))
+    lists = sorted(dist.items())  # sorted by key, return a list of tuples
 
-    n_gram = 3
-    n_generate = 300
-
-    language_model = train_model(training_filename, n_gram)
-    compute_perplexity(language_model, perplex_filename, n_gram)
-    #print(generate_from_ML(language_model, n_generate))
+    x, y = zip(*lists)  # unpack a list of pairs into two tuples
+    plt.bar(x, y)
+    plt.xlabel("Word length")
+    plt.ylabel("Normalized frequency")
+    plt.title("Normalized word length frequencies for {}".format(filename))
+    plt.show()
